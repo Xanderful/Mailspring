@@ -7,6 +7,7 @@ import {
 import AccountContactField from './account-contact-field';
 import ComposerHeaderActions from './composer-header-actions';
 import Fields from './fields';
+import { CommonPropTypes, withPropValidation } from '../../../src/prop-validation';
 
 const ScopedFromField = ListensToFluxStore(AccountContactField, {
   stores: [AccountStore],
@@ -23,8 +24,8 @@ export default class ComposerHeader extends React.Component {
   static displayName = 'ComposerHeader';
 
   static propTypes = {
-    draft: PropTypes.object.isRequired,
-    session: PropTypes.object.isRequired,
+    draft: CommonPropTypes.draft,
+    session: CommonPropTypes.draft,
   };
 
   static contextTypes = {

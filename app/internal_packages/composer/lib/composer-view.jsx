@@ -25,6 +25,7 @@ import ComposerHeader from './composer-header';
 import SendActionButton from './send-action-button';
 import ActionBarPlugins from './action-bar-plugins';
 import Fields from './fields';
+import { CommonPropTypes, withPropValidation } from '../../../src/prop-validation';
 
 const {
   hasBlockquote,
@@ -36,14 +37,13 @@ const {
 // The ComposerView is a unique React component because it (currently) is a
 // singleton. Normally, the React way to do things would be to re-render the
 // Composer with new props.
-export default class ComposerView extends React.Component {
-  static displayName = 'ComposerView';
+const EnhancedComposerView = withPropValidation(ComposerView, {
+  session: CommonPropTypes.draft,
+  draft: CommonPropTypes.draft,
+  className: CommonPropTypes.className,
+}, 'ComposerView');
 
-  static propTypes = {
-    session: PropTypes.object.isRequired,
-    draft: PropTypes.object.isRequired,
-    className: PropTypes.string,
-  };
+export default EnhancedComposerView;
 
   constructor(props) {
     super(props);

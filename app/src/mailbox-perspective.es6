@@ -17,6 +17,7 @@ import Category from './flux/models/category';
 import Label from './flux/models/label';
 import Folder from './flux/models/folder';
 import Actions from './flux/actions';
+import Logger from './logger';
 
 let WorkspaceStore = null;
 let ChangeStarredTask = null;
@@ -47,8 +48,11 @@ export default class MailboxPerspective {
   }
 
   static forStandardCategories(accountsOrIds, ...names) {
-    // TODO this method is broken
     const categories = CategoryStore.getCategoriesWithRoles(accountsOrIds, ...names);
+    if (!categories || categories.length === 0) {
+      console.warn(`No categories found for roles: ${names.join(',')} with accounts: ${accountsOrIds}`);
+      return this.forNothing();
+    }
     return this.forCategories(categories);
   }
 
@@ -82,7 +86,7 @@ export default class MailboxPerspective {
       }
       return this.forInbox(json.accountIds);
     } catch (error) {
-      AppEnv.reportError(new Error(`Could not restore mailbox perspective: ${error}`));
+      Logger.forModule('MailboxPerspective').error(`Could not restore mailbox perspective: ${error}`);
       return null;
     }
   }
@@ -205,7 +209,6 @@ export default class MailboxPerspective {
   }
 
   actionsForReceivingThreads(threads, accountId) {
-    // eslint-disable-line
     throw new Error('actionsForReceivingThreads: Not implemented in base class.');
   }
 
@@ -518,7 +521,6 @@ class CategoryMailboxPerspective extends MailboxPerspective {
     ChangeLabelsTask = ChangeLabelsTask || require('./flux/tasks/change-labels-task').default;
     ChangeFolderTask = ChangeFolderTask || require('./flux/tasks/change-folder-task').default;
 
-    // TODO this is an awful hack
     const role = this.isArchive() ? 'archive' : this.categoriesSharedRole();
 
     if (role === 'spam' || role === 'trash') {
@@ -535,6 +537,14 @@ class CategoryMailboxPerspective extends MailboxPerspective {
       const cat = this.categories().find(c => c.accountId === accountId);
       if (cat instanceof Label && preferred.role !== 'trash') {
         const inboxCat = CategoryStore.getInboxCategory(accountId);
+        if (!inboxCat) {
+          Logger.forModule('MailboxPerspective').warn(`Inbox category not found for account ${accountId}`);
+          return new ChangeFolderTask({
+            threads: accountThreads,
+            folder: preferred,
+            source: source,
+          });
+        }
         return new ChangeLabelsTask({
           threads: accountThreads,
           labelsToAdd: [],

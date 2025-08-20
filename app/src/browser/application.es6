@@ -8,6 +8,7 @@ import url from 'url';
 import path from 'path';
 import proc from 'child_process';
 import { EventEmitter } from 'events';
+import Logger from '../logger';
 
 import WindowManager from './window-manager';
 import FileListCache from './file-list-cache';
@@ -24,6 +25,8 @@ let clipboard = null;
 
 // The application's singleton class.
 //
+const logger = Logger.forModule('Application');
+
 export default class Application extends EventEmitter {
   async start(options) {
     const { resourcePath, configDirPath, version, devMode, specMode, safeMode } = options;
@@ -205,7 +208,7 @@ export default class Application extends EventEmitter {
   deleteFileWithRetry(filePath, callback = () => {}, retries = 5) {
     const callbackWithRetry = err => {
       if (err && err.message.indexOf('no such file') === -1) {
-        console.log(`File Error: ${err.message} - retrying in 150msec`);
+        logger.debug(`File Error: ${err.message} - retrying in 150msec`);
         setTimeout(() => {
           this.deleteFileWithRetry(filePath, callback, retries - 1);
         }, 150);
@@ -261,7 +264,7 @@ export default class Application extends EventEmitter {
 
     fn(async () => {
       if (resetDatabase) {
-        // TODO BG Reset Database via helpers
+        this._resetDatabase();
       }
       if (resetConfig) {
         this.config.set('nylas', null);
@@ -275,6 +278,30 @@ export default class Application extends EventEmitter {
     this.deleteFileWithRetry(path.join(this.configDirPath, 'edgehill.db'), callback);
     this.deleteFileWithRetry(path.join(this.configDirPath, 'edgehill.db-wal'));
     this.deleteFileWithRetry(path.join(this.configDirPath, 'edgehill.db-shm'));
+  };
+
+  _resetDatabase = () => {
+    // Reset database by removing all data and reinitializing
+    // This is a comprehensive database reset that clears all local data
+    const dbPath = path.join(this.configDirPath, 'edgehill.db');
+    const walPath = path.join(this.configDirPath, 'edgehill.db-wal');
+    const shmPath = path.join(this.configDirPath, 'edgehill.db-shm');
+    
+    const filesToDelete = [dbPath, walPath, shmPath];
+    let filesDeleted = 0;
+    
+    const deleteComplete = () => {
+      filesDeleted++;
+      if (filesDeleted === filesToDelete.length) {
+        // All database files deleted successfully
+        // The database will be recreated automatically when needed
+        logger.info('Database reset completed successfully');
+      }
+    };
+    
+    filesToDelete.forEach(filePath => {
+      this.deleteFileWithRetry(filePath, deleteComplete);
+    });
   };
 
   rebuildDatabase = ({ showErrorDialog = true, detail = '' } = {}) => {
@@ -299,7 +326,7 @@ export default class Application extends EventEmitter {
     setTimeout(() => {
       this.windowManager.destroyAllWindows();
       this._deleteDatabase(async () => {
-        // TODO BG Invoke db helepr
+        this._resetDatabase();
         this._rebuildingDatabase = false;
         this.openWindowsForTokenState();
       });
@@ -513,8 +540,7 @@ export default class Application extends EventEmitter {
     });
 
     ipcMain.on('ensure-worker-window', () => {
-      // TODO BG
-      // this.windowManager.ensureWindow(WindowManager.MAIN_WINDOW)
+      this.windowManager.ensureWindow(WindowManager.MAIN_WINDOW);
     });
 
     ipcMain.on('inline-style-parse', (event, { html, key }) => {
@@ -699,8 +725,7 @@ export default class Application extends EventEmitter {
   // MailspringWindow - The {MailspringWindow} to send the command to.
   // args - The optional arguments to pass along.
   sendCommandToWindow = (command, MailspringWindow, ...args) => {
-    console.log('sendCommandToWindow');
-    console.log(command);
+    logger.debug('sendCommandToWindow:', command);
     if (this.emit(command, ...args)) {
       return;
     }
@@ -741,7 +766,7 @@ export default class Application extends EventEmitter {
     const main = this.windowManager.get(WindowManager.MAIN_WINDOW);
 
     if (!main) {
-      console.log(`Ignoring URL - main window is not available, user may not be authed.`);
+      logger.debug(`Ignoring URL - main window is not available, user may not be authed.`);
       return;
     }
 
@@ -754,7 +779,7 @@ export default class Application extends EventEmitter {
         main.sendMessage('openThreadFromWeb', urlToOpen);
       }
     } else {
-      console.log(`Ignoring unknown URL type: ${urlToOpen}`);
+      logger.debug(`Ignoring unknown URL type: ${urlToOpen}`);
     }
   }
 
